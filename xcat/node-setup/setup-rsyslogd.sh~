@@ -1,0 +1,18 @@
+#!/bin/bash
+# Setup rSysLogD
+# ----------------------------------------------------------------------------
+# Safe to re-run on live nodes...this script takes care of setting up rsyslogd
+# on nodes. The main purpose is to modify what gets sent to /dev/console and
+# *.emerg messages.
+#
+# A bug was also found in that, if users submit /bin/logger notices with emerg
+# it would be broadcasted to all users on system. Big no no..
+#
+# @author       Adam Brenner   <aebrenne@uci.edu>
+# @version      1.0
+# @date         03/2013
+
+/bin/cp -Rf /data/node-setup/node-files/etc/rsyslog.conf /etc/rsyslog.conf
+
+/sbin/service rsyslog restart
+

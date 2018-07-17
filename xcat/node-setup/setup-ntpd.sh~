@@ -1,0 +1,65 @@
+#!/bin/bash
+#### Garr Updegraff
+#### Some of our donated 8-core Intel nodes have worn out clock batteries
+####	and reset to 2008 whenever they're turned off.
+####	Then when restarted, the ntpd process refuses to run, because the
+####	date difference is more than 1000 seconds, so the servers stay with
+####	that old date.
+#### This script modifies the "ntpd" options file so it contains the "-g"
+####	switch, by copying file:
+####	    /data/node-setup/node-files/etc_sysconfig_ntpd.options.txt
+####    over the old ntpd options file:
+####	    /etc/sysconfig/ntpd
+####    The "-g" switch allows ntpd to process a huge date change without
+####	aborting.
+####	Then this script stops and restarts "ntpd".
+#### It should be safe to run this script any time.
+
+HOST=`/bin/hostname`
+
+/bin/echo  "Script  setup.ntpd.sh  starting on node  $HOST"
+
+NTPD_OPTIONS_SOURCE="/data/xcat/node-setup/node-files/etc/sysconfig/ntpd"
+NTPD_OPTIONS_DEST="/etc/sysconfig/ntpd"
+NTPD_INIT_SCRIPT="/etc/init.d/ntpd"
+
+# Make sure we're running as root:
+set `/usr/bin/id`	# assign 'uid=0(root)', 'uid=500(garru)' or whatever to $1
+uid=`/bin/echo $1 | /bin/egrep "\(root\)"`
+if [ -z "$uid" ];  then
+    /bin/echo "You must be 'root' to run this script."
+    exit
+fi
+
+# Check whether options source file  is accessable:
+if [ ! -r "$NTPD_OPTIONS_SOURCE" ];  then
+    /bin/echo "setup-ntpd.sh Error: Cannot access '$NTPD_OPTIONS_SOURCE'.
+    Exiting script early"
+    exit;
+fi
+
+# Check whether options destination file is writable:
+if [ ! -r "$NTPD_OPTIONS_DEST" ];  then
+    /bin/echo "setup-ntpd.sh Error: Destination file missing '$NTPD_OPTIONS_DEST'.
+    Exiting script early, because this may be a different O/S."
+    exit;
+fi
+if [ ! -w "$NTPD_OPTIONS_DEST" ];  then
+    /bin/echo "setup-ntpd.sh Error: File writable '$NTPD_OPTIONS_DEST'.
+    Exiting script early"
+    exit;
+fi
+
+# Copy the new ntpd options file:
+/bin/echo "/bin/cp -p '$NTPD_OPTIONS_SOURCE'  '$NTPD_OPTIONS_DEST'"
+/bin/cp -p "$NTPD_OPTIONS_SOURCE"  "$NTPD_OPTIONS_DEST"
+
+# Restart ntpd:
+/bin/echo "$NTPD_INIT_SCRIPT  stop"
+$NTPD_INIT_SCRIPT  stop
+
+/bin/echo "$NTPD_INIT_SCRIPT  start"
+$NTPD_INIT_SCRIPT  start
+
+/bin/echo "setup-ntpd.sh script complete.
+    Options file copied and ntpd restarted."

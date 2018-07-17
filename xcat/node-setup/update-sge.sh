@@ -1,0 +1,84 @@
+#!/bin/bash
+### J. Farran
+### 3/15
+### This script can be ran/re-ran on nodes without any issues.
+
+FLAG=/root/update-sge-to-8.1.9-CentOS-6.9.flag1
+
+##################################################################
+## WipeOutSGEData = 1 will WIPE out ALL JOBS on that node.
+## Only used when doing a full upgrade with no jobs on the node!
+WIPEOUTSGEDATA=0
+
+if [[ `hostname` == "services-xcat" ]];then
+    printf "\n -----> Do NOT run this on XCAT Server!   Exiting.\n\n"
+    exit -1
+fi
+
+echo " "
+echo "Updating Grid Engine files in $SGE_ROOT and re-setting file permissions."
+/bin/cp -f /data/hpc/sge/*.sh          $SGE_ROOT
+/bin/cp -f /data/hpc/sge/sge_request   $SGE_ROOT/default/common
+
+/bin/chown 400  $SGE_ROOT/*.sh
+/bin/chgrp 400  $SGE_ROOT/default/common/sge_request 
+
+echo " "
+if [ -e $FLAG ];then
+    echo "Found Flag: $FLAG"
+    echo "No need to update SGE."
+    exit -1
+else
+    echo "Udating SGE on node [ `hostname` ]."
+    echo " "
+fi
+
+SGE_ROOT="/opt/gridengine"
+
+/sbin/service sgeexecd.HPC softstop
+/sbin/service sgeexecd.HPC softstop
+sleep 2
+
+echo " "
+echo "Setting up new GE in /opt/gridengine"
+cd /opt
+/bin/cp -f /data/xcat/node-setup/node-files/gridengine-8.1.9-centos-6.9.tar .
+
+tar -xf gridengine-8.1.9-centos-6.9.tar
+
+if [ ! -f /opt/gridengine/default/common/accounting ];then
+    echo "Creating link: /opt/gridengine/default/common/accounting"
+    /bin/ln -s /data/hpc/sge/accounting  /opt/gridengine/default/common/accounting
+fi
+
+if [ ! -f /opt/gridengine/default/common/reporting ];then
+    echo "Creating link: /opt/gridengine/default/common/reporting"
+    /bin/ln -s /data/hpc/sge/reporting  /opt/gridengine/default/common/reporting
+fi
+
+if [ $WIPEOUTSGEDATA -eq 1 ];then
+    echo "----------------------------------------------"
+    echo "Removing ALL of the old /var/spool/sge/* files"
+    echo "Any jobs on this node will be REMOVED!"
+    /bin/rm -rf /var/spool/sge/*
+    echo "----------------------------------------------"
+fi
+
+/bin/cp -f $SGE_ROOT/default/common/sgeexecd  /etc/init.d/sgeexecd.HPC
+/sbin/chkconfig  sgeexecd.HPC on
+
+/bin/cp -f /data/xcat/node-setup/node-files/etc/profile.d/sge.*  /etc/profile.d/
+/bin/cp -f /data/xcat/node-setup/node-files/dot-sge_qstat        /root/.sge_qstat
+
+/bin/cp -f /data/hpc/sge/*.sh          $SGE_ROOT
+/bin/cp -f /data/hpc/sge/qrsh          $SGE_ROOT/bin
+/bin/cp -f /data/hpc/sge/qlogin        $SGE_ROOT/bin
+/bin/cp -f /data/hpc/sge/sge_request   $SGE_ROOT/default/common
+
+/bin/chown -R 400  $SGE_ROOT
+/bin/chgrp -R 400  $SGE_ROOT
+
+/sbin/service sgeexecd.HPC restart
+
+printf "\nAll done.\n"
+touch $FLAG

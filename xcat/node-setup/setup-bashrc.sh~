@@ -1,0 +1,29 @@
+#!/bin/bash
+#### J. Farran
+#### 10/13
+
+##################################################################
+### Setup the node's root .bashrc file
+### This script can be re-ran without issue
+
+if [[ `hostname` = hpc-s* ]];then
+    echo " "
+    echo "-----> Do NOT run this on the head node! Exiting."
+    exit -1
+fi
+
+FILE=/root/.bashrc
+
+##########################################################################
+### First cleanup
+/bin/sed -i '/shell-syswide-setup/d'     $FILE
+/bin/sed -i '/VISUAL/d'                  $FILE
+/bin/sed -i '/EDITOR/d'                  $FILE
+/bin/sed -i '/HPC_CURRENT_KERNEL_RPM/d'  $FILE
+
+### Add entries
+echo ". /data/shell-syswide-setup/system-wide-bashrc" >> $FILE
+echo "export VISUAL=emacs"                            >> $FILE
+echo "export EDITOR=emacs"                            >> $FILE
+export HPC_CURRENT_KERNEL_RPM='/data/node-setup/node-files/rpms/kernel/kernel-2.6.32-358.18.1.el6.x86_64.rpm'
+echo "export HPC_CURRENT_KERNEL_RPM='$HPC_CURRENT_KERNEL_RPM'" >> $FILE

@@ -1,0 +1,9 @@
+#!/bin/bash -v
+##########################################################################
+#### J. Farran
+#### Setup /etc/profile.d
+
+/bin/cp -f /data/xcat/node-setup/node-files/etc/profile.d/*   /etc/profile.d
+
+/bin/rm -f /etc/profile.d/rocks-hpc.csh 
+/bin/rm -f /etc/profile.d/rocks-hpc.sh

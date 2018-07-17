@@ -1,0 +1,3 @@
+
+yum install kernel-headers kernel-tools-libs kernel-debug-devel kernel-headers kernel-devel
+

@@ -1,0 +1,5 @@
+#!/bin/bash
+#### J. Farran
+#### Setup Kernel libs and Kernel sources
+
+yum install -y  kernel-headers kernel-tools-libs kernel-debug-devel kernel-headers kernel-devel

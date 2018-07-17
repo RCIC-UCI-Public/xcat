@@ -1,0 +1,231 @@
+#!/bin/sh -xv
+##########################################################################
+#### J. Farran
+#### 2011
+#### Node configuration Script.
+#### This script is ran by ALL nodes on first boot.   After all changes
+#### are made the node will then reboot and become ready as a compute node.
+####
+
+/usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+/usr/bin/logger -p error -t NODE-SETUP.SH "***                 BEGIN          J. Farran ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "***                                          ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "***       Compute Node Configuration         ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "*** Script:  /data/node-setup/node-setup.sh  ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "***                                          ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+date
+uname -a
+
+##########################################################################
+#### Setup NFS mounts for /data and /export
+####
+mkdir -p /data
+
+echo "10.1.255.239    nas-7-7.local   nas-7-7"   >> /etc/hosts
+echo "nas-7-7.local:/data     /data                   nfs     rw,noatime,hard,tcp,nosuid,rsize=65520,wsize=65520" >> /etc/fstab
+
+/bin/mount /data
+
+##########################################################################
+#### Sanity check.   Do not proceed if we cannot mount /data to configure 
+#### this node.
+####
+if test -d "/data/node-setup"
+then
+    /usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+    /usr/bin/logger -p error -t NODE-SETUP.SH "*** Success mounting NFS /data FS.           ***"
+    /usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+    df -h /data
+else
+    /usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+    /usr/bin/logger -p error -t NODE-SETUP.SH "*** ERROR: NOT ABLE TO MOUNT NFS /data.      ***"
+    /usr/bin/logger -p error -t NODE-SETUP.SH "*** Aborting Process.                        ***"
+    /usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+    exit
+fi
+
+##########################################################################
+#### Set the root password
+/data/xcat/node-setup/setup-root-password.sh
+
+##########################################################################
+#### IPMI Setup.   One of the first things we setup is IPMI in case things
+#### go south and need to reset the node remotely.
+/data/xcat/node-setup/setup-ipmi.sh
+
+##########################################################################
+#### Use Local HPC repos mirror
+/data/xcat/node-setup/setup-local-repos.sh
+# JF Need to get bits for BeeGFS
+
+##########################################################################
+#### Setup Kernel Libs
+/data/xcat/node-setup/setup-kernel-libs.sh
+
+##########################################################################
+#### Needed packages
+/data/xcat/node-setup/yum-to-install.sh
+
+##########################################################################
+#### Yum Update ( The first sometimes failes with unwated rpms )
+/data/xcat/node-setup/yum-update.sh
+
+##########################################################################
+#### Set CPU to maximum speed always on
+/data/xcat/node-setup/setup-cpu-frequency.sh
+
+##########################################################################
+#### Mellanox OFED Setup
+/data/xcat/node-setup/setup-ofed.sh
+
+##########################################################################
+#### Setup /etc/hosts file.
+#/data/xcat/node-setup/setup-hosts.sh
+
+##########################################################################
+#### Copy various needed config files.
+#
+/data/xcat/node-setup/setup-profile.d.sh
+
+##########################################################################
+#### Setup needed Linkies
+/bin/ln -s /usr/bin/logger /bin/logger
+
+##########################################################################
+#### Update /etc/csh.cshrc and /etc/csh.login
+/data/xcat/node-setup/setup-csh.sh
+
+##########################################################################
+#### We setup the nodes with all X apps, so inittab is set to 5 X11 run.
+#### Change inittab from 5 to 3 (no X11 login).
+#/bin/sed -i 's/id:5/id:3/' /etc/inittab
+
+##########################################################################
+#### Setup /scratch ( itchy-scratchy )
+/bin/mkdir            /scratch
+/bin/chmod ugo+rwx,+t /scratch
+
+##########################################################################
+#### Setup Node Mounts & BeeGFS
+/data/xcat/node-setup/setup-mounts.sh
+
+##########################################################################
+#### Update root .bashrc
+/data/xcat/node-setup/setup-bashrc.sh
+
+##########################################################################
+#### Setup limits
+#/data/xcat/node-setup/setup-ulimits.sh
+# JF: Redo
+
+##########################################################################
+#### Setup services
+/data/xcat/node-setup/setup-services.sh
+
+##########################################################################
+#### Setup Cronny
+/data/xcat/node-setup/setup-cron.sh
+
+##########################################################################
+#### 
+/data/xcat/node-setup/setup-rsyslogd.sh 
+
+##########################################################################
+#### Setup /etc/init.d
+/data/xcat/node-setup/setup-init.d.sh
+
+##########################################################################
+#### Setup Grid Engine enviroment
+#/bin/mv -v /opt/gridengine  /opt/gridengine-original
+/data/xcat/node-setup/setup-sge.sh
+/data/xcat/node-setup/update-sge.sh
+/sbin/xcat/service sgeexecd.HPC  stop    # Just in case
+
+##########################################################################
+#### Setup LM_Sensors
+/data/xcat/node-setup/setup-sensors.sh
+
+##########################################################################
+#### Time protocol
+/bin/cp -f /data/xcat/node-setup/node-files/etc/ntp.conf  /etc
+
+##########################################################################
+#### Run "sensors-detect" with defaults, so we can run "sensors"
+#### later on to get CPU temperatures.
+#### 2014-09-09 Garr.
+/data/xcat/node-setup/sensors-detect.sh 
+
+exit
+
+##########################################################################
+#### Run "setup-ntpd.sh" to add -g option to  /etc/sysconfig/ntpd  so ntpd
+####    can adjust by more than 600 seconds, if clock battery is bad.
+#### 2016-06-20 Garr.
+/data/xcat/node-setup/setup-ntpd.sh 
+
+##########################################################################
+#### Restore Node specific files from a previous setup
+/data/node-setup/restore-node-files.sh
+
+##########################################################################
+#### Setup /etc/motd :-)
+/data/node-setup/setup-motd.sh
+
+##########################################################################
+#### Check if this is one of the donated HP nodes (compute-10-x to
+#### compute-13-x) that needs a BIOS update from 2008 to 2011.
+#### The server needs to reboot after the update before the new BIOS
+#### kicks in, but this script specifically does NOT reboot anything.
+#### When running manually, use script:  hp-bios-update-reboot.sh
+#### Log file generated locally for node at:
+####     ~root/hp_proliant_dl360_g5.bios-2011/UPDATE_COMPLETE_REBOOT_SCHEDULED.log
+#### 2016-03-08 Garr.
+
+/data/node-setup/hp-bios-update-no-reboot.sh
+
+##########################################################################
+#### Juan more setup mounts just in case ( can be re-run without issues )
+/data/node-setup/setup-hosts.sh
+/data/node-setup/setup-mounts.sh
+
+##########################################################################
+#### Get 411 Pages just in case they are not there.
+/opt/rocks/bin/411get --all
+
+
+##########################################################################
+#### Setup MTU size on network interfaces
+/data/node-setup/setup-MTU.sh
+
+
+##########################################################################
+#### Setup Ganglia bits in the node
+### By Imam
+/data/node-setup/ganglia/3.7.2/configs/setup-gmond.sh -i yes
+
+#########################################################################
+# Old compute-20-x NIC driver
+if  [[  "$NODE" =~ "compute-20-" ]] || \
+    [[ "$NODE" =~  "nas-20-"     ]];then
+    cd /root
+    wget http://10.1.1.1/hpc-drivers/kernel-firmware-3.10.68-11.el6.centos.alt.noarch.rpm
+    /bin/rpm --nodeps -i kernel-firmware-3.10.68-11.el6.centos.alt.noarch.rpm
+fi
+
+##########################################################################
+#### Finish the process.
+
+/sbin/chkconfig node-first-boot-setup off
+/sbin/chkconfig --del node-first-boot-setup
+
+/usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+/usr/bin/logger -p error -t NODE-SETUP.SH "***                ALL DONE                  ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "***        Compute Node Configured           ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "***              - Rebooting -               ***"
+/usr/bin/logger -p error -t NODE-SETUP.SH "************************************************"
+
+sync;sync;sync
+#### Let the remaining init scripts finish, then reboot.
+( /bin/sleep 10; /sbin/reboot )&
+exit
